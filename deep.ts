@@ -1,14 +1,15 @@
-export type DeepSet<T, Key extends string, Func extends () => any> = T extends
-  | Function
-  | number
-  | null
-  | string
-  | symbol
+export type DeepSet<
+  T extends any,
+  Key extends string,
+  Func extends () => any,
+> = T extends Function | number | null | string | symbol | undefined
   ? T
-  : T extends any[]
-  ? T extends [infer A, ...infer B]
-    ? [DeepSet<A, Key, Func>, ...DeepSet<B, Key, Func>]
-    : [DeepSet<T[0], Key, Func>]
+  : T extends (infer A)[]
+  ? A extends object
+    ? DeepSet<A, Key, Func>[]
+    : A extends Function | number | null | string | symbol | undefined
+    ? A[]
+    : [DeepSet<A, Key, Func>]
   : {
       [k in keyof T]: T[k] extends object ? DeepSet<T[k], Key, Func> : T[k];
     } & { [k in Key]: ReturnType<Func> };
@@ -16,65 +17,84 @@ export type DeepSet<T, Key extends string, Func extends () => any> = T extends
 /**
  * deep set key to obj
  * @param obj any object
- * @param key key to set
  * @param func get value func
+ * @param key key to set
+ * @default "_uid"
  * @returns obj with deep set key
  */
-export function deepSet<T, K extends string, V extends () => any>(
+export function deepSet<T, V extends () => any, K extends string = "_uid">(
   obj: T,
-  key: K,
   func: V,
+  key = "_uid" as K,
 ): DeepSet<T, K, V> {
   if (!func) return obj as any;
   if (typeof obj === "object") {
     if (Array.isArray(obj)) {
-      obj.forEach((d) => deepSet(d, key, func));
+      obj.forEach((d) => deepSet(d, func, key));
     } else if (obj !== null) {
-      if (!(key in obj)) {
+      if (!Object.keys(obj).includes(key as string)) {
         (obj as any)[key] = func();
       }
       for (const k in obj) {
-        deepSet(obj[k], key, func);
+        deepSet(obj[k], func, key);
       }
     }
   }
   return obj as any;
 }
 
-export type DeepDel<T, Key extends string> = T extends
+export type DeepDel<T, Key extends (string | symbol | number)[]> = T extends
   | Function
   | number
   | null
   | string
   | symbol
+  | undefined
   ? T
-  : T extends any[]
-  ? T extends [infer A, ...infer B]
-    ? [DeepDel<A, Key>, ...DeepDel<B, Key>]
-    : [DeepDel<T[0], Key>]
-  : Omit<
-      {
-        [k in keyof T]: T[k] extends object ? DeepDel<T[k], Key> : T[k];
-      },
-      Key
+  : T extends (infer A)[]
+  ? A extends object
+    ? DeepDel<A, Key>[]
+    : A extends Function | number | null | string | symbol | undefined
+    ? A[]
+    : [DeepDel<A, Key>]
+  : Pick<
+      { [k in keyof T]: T[k] extends object ? DeepDel<T[k], Key> : T[k] },
+      Exclude<keyof T, Key[number]>
     >;
 
 /**
  * deep delete key from obj
  * @param obj any obj
- * @param key key to delete
+ * @param keys keys to delete
+ * @default ["_uid"]
  * @returns obj without key
  */
-export function deepDel<T, K extends string>(obj: T, key: K): DeepDel<T, K> {
+export function deepDel<T, K extends (string | symbol | number)[]>(
+  obj: T,
+  ...keys: K
+): DeepDel<T, K> {
   if (typeof obj === "object") {
     if (Array.isArray(obj)) {
-      obj.forEach((d) => deepDel(d, key));
+      obj.forEach((d) => deepDel(d, ...keys));
     } else if (obj !== null) {
-      delete (obj as any)[key];
+      keys.forEach((k) => {
+        delete (obj as any)[k];
+      });
       for (const k in obj) {
-        deepDel(obj[k], key);
+        deepDel(obj[k], ...keys);
       }
     }
   }
   return obj as any;
 }
+
+// const data = {
+//   str: [""],
+//   number: 0,
+//   arr: [{ child: {}, data: {} }, { child: {} }],
+//   test: { id: "" },
+//   func: () => {},
+// };
+
+// console.log(deepSet(data, () => Date.now()).str);
+// console.log(deepDel(data, "test", "str", "arr"));
