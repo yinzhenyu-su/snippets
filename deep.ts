@@ -1,18 +1,33 @@
+/**
+ * 递归添加属性到对象
+ * @param T 对象
+ * @param Func 获取值函数
+ * @param Key 添加的属性名
+ */
 export type DeepSet<
   T extends any,
-  Key extends string,
   Func extends () => any,
-> = T extends Function | number | null | string | symbol | undefined
+  Key extends string,
+> = T extends Function | number | null | string | symbol | undefined | boolean
   ? T
-  : T extends (infer A)[]
-  ? A extends object
-    ? DeepSet<A, Key, Func>[]
-    : A extends Function | number | null | string | symbol | undefined
-    ? A[]
-    : [DeepSet<A, Key, Func>]
-  : {
-      [k in keyof T]: T[k] extends object ? DeepSet<T[k], Key, Func> : T[k];
-    } & { [k in Key]: ReturnType<Func> };
+  : T extends (infer A extends unknown)[]
+    ? A extends Function | number | null | string | symbol | undefined | boolean
+      ? A[]
+      : DeepSet<A, Func, Key>[]
+    : {
+        [k in keyof T]: T[k] extends object
+          ? DeepSet<T[k], Func, Key>
+          : T[k] extends
+                | Function
+                | number
+                | null
+                | string
+                | symbol
+                | undefined
+                | boolean
+            ? T[k]
+            : DeepSet<T[k], Func, Key>;
+      } & { [k in Key]: ReturnType<Func> };
 
 /**
  * deep set key to obj
